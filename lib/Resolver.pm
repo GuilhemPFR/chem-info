@@ -6,8 +6,9 @@ use Mojo::UserAgent;
 
 has url_generator => sub {
   return sub {
+    my ($cmp, $property) = @_;
     my $srv = q{https://cactus.nci.nih.gov/chemical/structure};
-    return Mojo::URL->new(join '/', $srv, $_[0]->name, $_[1]);
+    return Mojo::URL->new(join '/', $srv, $cmp->name, $property);
   };
 };
 has user_agent => sub {
