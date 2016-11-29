@@ -21,6 +21,7 @@ app {
   my ($self, @args) = @_;
   my $cmp_names = [ grep { defined && length } split /\n/, slurp($self->compounds) ];
   foreach my $name( @$cmp_names ) {
+    $name =~ s/_/ /g; ## names do not have underscores.
     my $cmp = Compound->new(name => $name);
     $self->resolver->resolve($cmp);
     warn Dumper $cmp;
