@@ -13,6 +13,7 @@ use Mojo::Base qw{Resolver};
 use Mojo::DOM;
 use Text::Levenshtein::XS qw{distance};
 use List::Util qw{min};
+use Resolved;
 
 has stemming => 0;
 
@@ -94,16 +95,16 @@ sub _search2_call {
 
 sub resolve {
   my ($self, $cmp) = @_;
-  my ($ok_chemid, $tempfile_chemid, $count_chemid);
+  my $resolved = Resolved->new(query => $cmp);
   my @resultset = $self->_search2_call($cmp, 'hsdb');
 
   if ($resultset[0]->code > 0) {
-    $self->{found}++;
+    $resolved->found(1);
   } elsif (0 == $resultset[0]->code) {
     push @resultset, $self->_search2_call($cmp, 'chemid');
 
     if ($resultset[-1]->code > 0) {
-      $self->{found}++;
+      $resolved->found(1);
     } else {
       @resultset = (
         sort { $a->count <=> $b->count }
@@ -116,18 +117,17 @@ sub resolve {
           my ($first) = sort {
             $hits->{$a}->{'distance'} <=> $hits->{$b}->{'distance'}
           } keys %$hits;
-          warn "close: $close, first: $first\n";
-          $self->{found}++;
-        } else {
-          $self->{missing}++;
+          my ($cas, $dist) = @{$hits->{$first}}{qw{cas distance}};
+          $cmp->cas_list([$cas]);
+          $resolved->found(1);
+          $resolved->match($first);
+          $resolved->distance($dist);
         }
-      } else {
-        $self->{missing}++;
       }
     }
-  } else {
-    $self->{missing}++;
   }
+  $self->update_stats($resolved);
+  return $resolved;
 }
 
 1;

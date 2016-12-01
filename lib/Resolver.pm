@@ -22,6 +22,7 @@ sub _call {
 }
 sub resolve {
   my ($self, $compound) = @_;
+  my $resolved = Resolved->new(query => $compound);
   my $url = $self->url_generator->($compound, 'cas');
   my ($ok, $cas_list) = $self->_call($url);
   if ($ok) {
@@ -34,16 +35,24 @@ sub resolve {
     $url = $self->url_generator->($compound, 'names');
     my ($ok2, $synonyms) = $self->_call($url);
     $compound->synonyms([ split /\n/, $synonyms ]);
-    $self->{'found'}++;
-  } else {
-    $self->{'missing'}++;
+    $resolved->found(1);
   }
-  return $self;
+  $self->update_stats($resolved);
+  return $resolved;
 }
 
 sub stats {
   my $self = shift;
   return { map { $_ => $self->{$_} } qw{found missing} };
+}
+
+sub update_stats {
+  my ($self, $r) = @_;
+  if ($r->found) {
+    $self->{found}++;
+  } else {
+    $self->{missing}++;
+  }
 }
 
 1;
