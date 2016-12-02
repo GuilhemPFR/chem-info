@@ -1,4 +1,4 @@
-#!/usr/bin/env perl -C24
+#!/usr/bin/env perl -CS
 
 use charnames qw{greek};
 use utf8;
@@ -17,6 +17,7 @@ use Compound;
 use Resolver;
 use Resolver::Hash;
 use Resolver::Toxnet;
+use utf8;
 
 has app_result => 0;
 has compound_list => sub {
@@ -39,19 +40,28 @@ has lookup => sub {
   }
   return \%name_to_cas;
 };
+
+has output_fh => sub {
+  my ($self) = @_;
+  return \*STDERR unless $self->output;
+  open my $fh, '>:encoding(UTF-8)', $self->output;
+  return $fh;
+};
+
 has resolver => sub {
   my $self = shift;
   my $module = {
-    cactus => 'Resolver',
-    hash => 'Resolver::Hash',
-    toxnet => 'Resolver::Toxnet'
+    cactus => sub { Resolver->new() },
+    hash => sub { Resolver::Hash->new(lookup => $_[0]->lookup) },
+    toxnet => sub { Resolver::Toxnet->new() }
   }->{lc $self->rtype};
   $module or die "no resolver found";
-  "$module"->new(lookup => $self->lookup);
+  $module->($self);
 };
 
 option file => compounds => 'file of compounds - one per line';
 option file => synonyms => 'synonyms file';
+option file => output => 'output tab separated file' => 'output.tsv';
 option str => rtype => 'type of resolver to use' => 'toxnet'; ## only one
 option flag => fisheryates => 'fisher yates' => 0;
 
@@ -65,35 +75,46 @@ app {
   my $cmp_names = $self->compound_list;
   my $count = 0;
   my $prune = $self->_prune_regex;
+  $self->write_header();
   foreach my $name( @$cmp_names ) {
-    ## This causes an awesome error in the interface also...
-    $name =~ s{CAPS \(3-\[Cyclohexylamino\]-1-propanesulfonic acid}{CAPS 3-(Cyclohexylamino)-1-propanesulfonic acid};
-    ## greek to letter name
-    $name =~ s/(\p{Greek})/_translate($1)/eg;
-    ## bracketed prefices (-)-, (+)-, etc...
-    $name =~ s{^$prune}{};
-    my $cmp = Compound->new(name => lc $name);
+    my $canonical = $self->canonicalise($prune, $name);
+    my $cmp = Compound->new(name => $canonical);
     my $resolved = $self->resolver->resolve($cmp);
+    $resolved->query($name);
     $self->write_resolution($resolved);
   }
-  warn Dumper $self->resolver->stats;
+
 };
+
+sub canonicalise {
+  my ($self, $prune, $name) = @_;
+  ## This causes an awesome error in the interface also...
+  (my $canonical = $name) =~ s{CAPS \(3-\[Cyclohexylamino\]-1-propanesulfonic acid}{CAPS 3-(Cyclohexylamino)-1-propanesulfonic acid};
+  ## greek to letter name
+  $canonical =~ s/(\p{Greek})/_translate($1)/eg;
+  ## bracketed prefices (-)-, (+)-, etc...
+  $canonical =~ s{^$prune}{};
+
+  return lc $canonical;
+}
+
+sub write_header {
+  my ($self) = @_;
+  my $fh = $self->output_fh;
+  print $fh join("\t", qw{resolved name cas edit match original_name}), "\n";
+}
 
 sub write_resolution {
   my ($self, $r) = @_;
-  my $cmp = $r->query;
-  if ($r->found) {
-    if (0 == $r->distance) {
-      ## write to lookup file
-      print STDERR join("\t", 1, $cmp->name, $cmp->cas, $r->distance, ''), "\n";
-    } else {
-      ## write to lookup.check file
-      print STDERR join("\t", 1, $cmp->name, $cmp->cas, $r->distance, $r->match), "\n";
-    }
-  } else {
-    ## write to missing file
-    print STDERR join("\t", 0, $cmp->name, '', '', ''), "\n";
-  }
+  my $cmp = $r->compound;
+  my $fh = $self->output_fh;
+
+  print $fh join("\t",
+    $r->found, $cmp->name,
+    $cmp->cas || '',
+    $r->distance,
+    $r->match || '',
+    $r->query), "\n";
 }
 
 sub _fisher_yates_shuffle_in_place {

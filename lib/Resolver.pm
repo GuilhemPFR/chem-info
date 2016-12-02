@@ -22,7 +22,7 @@ sub _call {
 }
 sub resolve {
   my ($self, $compound) = @_;
-  my $resolved = Resolved->new(query => $compound);
+  my $resolved = Resolved->new(compound => $compound);
   my $url = $self->url_generator->($compound, 'cas');
   my ($ok, $cas_list) = $self->_call($url);
   if ($ok) {

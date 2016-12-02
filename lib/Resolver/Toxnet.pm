@@ -95,7 +95,7 @@ sub _search2_call {
 
 sub resolve {
   my ($self, $cmp) = @_;
-  my $resolved = Resolved->new(query => $cmp);
+  my $resolved = Resolved->new(compound => $cmp);
   my @resultset = $self->_search2_call($cmp, 'hsdb');
 
   if ($resultset[0]->code > 0) {
