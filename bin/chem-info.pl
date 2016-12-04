@@ -64,6 +64,7 @@ option file => synonyms => 'synonyms file';
 option file => output => 'output tab separated file' => 'output.tsv';
 option str => rtype => 'type of resolver to use' => 'toxnet'; ## only one
 option flag => fisheryates => 'fisher yates' => 0;
+option flag => excel => 'flag to write a file Excel can read without converting to dates' => 0;
 
 has _prune_regex => sub {
   ## From man perlre
@@ -108,10 +109,11 @@ sub write_resolution {
   my ($self, $r) = @_;
   my $cmp = $r->compound;
   my $fh = $self->output_fh;
+  my $excel = ($self->excel ? chr(39) : ''); # chr(39) = '
 
   print $fh join("\t",
     $r->found, $cmp->name,
-    $cmp->cas || '',
+    ($cmp->cas ? $excel . $cmp->cas : ''),
     $r->distance,
     $r->match || '',
     $r->query), "\n";
